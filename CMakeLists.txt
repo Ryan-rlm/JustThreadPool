@@ -1,9 +1,10 @@
 
 cmake_minimum_required(VERSION 3.9)
 
-set(CMAKE_TOOLCHAIN_FILE /opt/vcpkg/scripts/buildsystems/vcpkg.cmake)
+set(CMAKE_TOOLCHAIN_FILE E:/Dev/vcpkg/scripts/buildsystems/vcpkg.cmake)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -lpthread -std=c++2a")
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(
     JustThreadPool
