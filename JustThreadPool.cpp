@@ -39,7 +39,7 @@ void ThreadPool::work_func()
         Task task;
 
         got = d->task_queue.wait_dequeue_timed(task, std::chrono::seconds(1));
-        if (got)
+        if (got && task)
             task();
 
         if (d->order == Order::Stop)

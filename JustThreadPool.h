@@ -70,14 +70,14 @@ namespace Just
     ThreadPool* commonThreadPool();
 
     template<typename Func, typename... Args>
-    std::future<std::result_of_t  <std::decay_t<Func>(std::decay_t<Args>...)>>
+    std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>
         async(ThreadPool& threadPool, Func&& func, Args&&... args)
     {
         return threadPool.run(std::forward<Func>(func), std::forward<Args>(args)...);
     }
 
     template<typename Func, typename... Args>
-    std::future<std::result_of_t  <std::decay_t<Func>(std::decay_t<Args>...)>>
+    std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>
         async(Func&& func, Args&&... args)
     {
         return commonThreadPool()->run(std::forward<Func>(func), std::forward<Args>(args)...);
