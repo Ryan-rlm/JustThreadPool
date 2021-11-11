@@ -2,6 +2,8 @@
 #ifndef __JUSTCONCURRENTQUEUE_H__
 #define __JUSTCONCURRENTQUEUE_H__
 
+#include <algorithm>
+#include <iterator>
 #include <memory>
 #include <atomic>
 
@@ -14,36 +16,30 @@ class ConcurrentQueue final
 {
     struct Node
     {
-        using Ptr = Node*;
         using SPtr = std::shared_ptr<Node>;
-        using AtmPtr = std::atomic<Ptr>;
 
         T _val;
 
-        AtmPtr _next { nullptr };
+        std::shared_ptr<Node> _next = nullptr;
     };
 
     private:
         std::atomic_uint32_t _size;
 
-        typename Node::AtmPtr _first;
-        typename Node::AtmPtr _last;
-        Node _head;
+        typename Node::SPtr _first;
+        typename Node::SPtr _last;
 
     public:
         ConcurrentQueue()
             : _size { 0 }
-            , _first { nullptr }
-            , _last { nullptr }
-            , _head { }
+            , _first { std::make_shared<Node>() }
+            , _last { _first }
         {
-            std::atomic_init<typename Node::Ptr>(&_first, &_head);
-            std::atomic_init<typename Node::Ptr>(&_last, &_head);
         }
 
         ~ConcurrentQueue()
         {
-            clear();
+            stop_and_clear();
         }
 
         ConcurrentQueue(ConcurrentQueue&&) = delete;
@@ -51,66 +47,142 @@ class ConcurrentQueue final
         ConcurrentQueue& operator=(const ConcurrentQueue&) = delete;
         ConcurrentQueue& operator=(ConcurrentQueue&&) = delete;
 
-        // bool try_push(const T& v);
-        // bool try_push(T&& v);
+        bool is_lock_free()
+        {
+            return std::atomic_is_lock_free(&_first) && std::atomic_is_lock_free(&_last) && std::atomic_is_lock_free(&_size);
+        }
+
         /**
          * @brief 入队
          *
          * @param v
          */
-        void push(const T& v)
+        bool push(const T& v)
         {
-            typename Node::Ptr tmp_node = new Node;
-            tmp_node->_val = v;
-            tmp_node->_next = nullptr;
-            typename Node::Ptr last_node = nullptr;
+            return push(T(v));
+        }
+
+        bool push(T&& v)
+        {
+            typename Node::SPtr last_node = std::atomic_load(&_last);
+            if (nullptr == last_node)
+                return false;
+
+            typename Node::SPtr tmp_node = std::make_shared<Node>();
+            tmp_node->_val = std::move(v);
 
             do
             {
-                last_node = _last;
-            } while (!(_last.compare_exchange_weak(last_node, tmp_node)));
+                last_node = std::atomic_load(&_last);
+                if (nullptr == last_node)
+                    return false;
+            } while (!(std::atomic_compare_exchange_strong(&_last, &last_node, tmp_node)));
 
-            last_node->_next = tmp_node;
+            std::atomic_store(&(last_node->_next), tmp_node);
             ++_size;
-        }
-        // void push(T&&);
 
-        // bool wait_pop(T&, size_t ms = 1000);
-        // bool try_pop(T&);
+            return true;
+        }
+
+        bool wait_pop(T&, size_t ms = 1000)
+        {
+            return false;
+        }
+
         bool pop(T& v)
         {
-            typename Node::Ptr first_node = nullptr;
+            typename Node::SPtr first_node = nullptr;
 
             do
             {
-                first_node = _first;
-                if (nullptr == first_node->_next)
+                first_node = std::atomic_load(&_first);
+                if (nullptr == first_node
+                    || nullptr == first_node->_next)
                 {
                     return false;
                 }
 
-            } while (_first.compare_exchange_weak(first_node, first_node->_next) != true);
+            } while (!(std::atomic_compare_exchange_strong(&_first, &first_node, first_node->_next)));
 
             --_size;
-            v = std::move(first_node->_val);
-            delete first_node;
+            v = std::move(first_node->_next->_val);
 
             return true;
         }
 
         bool empty() const noexcept
         {
-            return true;
+            return 0 == _size;
         }
 
         size_t size() const noexcept
         {
-            return 0;
+            return _size;
         }
 
         void clear() noexcept
         {
+            typename Node::SPtr first_node = std::atomic_load(&_first);
+            typename Node::SPtr last_node = stop_push();;
+            typename Node::SPtr null_node = nullptr;
 
+            if (nullptr == first_node
+                || nullptr == last_node)
+                return;
+
+            do {
+                first_node = std::atomic_load(&_first);
+                if (nullptr == first_node)
+                    return;
+            }while (!(std::atomic_compare_exchange_strong(&_first, &first_node, last_node)));
+
+            std::atomic_store(&_last, last_node);
+        }
+
+    private:
+
+        void stop_and_clear() noexcept
+        {
+            typename Node::SPtr first_node = std::atomic_load(&_first);
+            typename Node::SPtr last_node = std::atomic_load(&_last);
+            typename Node::SPtr null_node = nullptr;
+
+            if (nullptr == first_node
+                || nullptr == last_node)
+                return;
+
+            stop_push();
+            stop_pop();
+        }
+
+        typename Node::SPtr stop_pop() noexcept
+        {
+            typename Node::SPtr first_node = std::atomic_load(&_first);
+            typename Node::SPtr null_node = nullptr;
+            if (nullptr == first_node)
+                return nullptr;
+
+            do
+            {
+                first_node = std::atomic_load(&_first);
+            } while (!(std::atomic_compare_exchange_strong(&_first, &first_node, null_node)));
+
+            return first_node;
+        }
+
+        typename Node::SPtr stop_push() noexcept
+        {
+            typename Node::SPtr last_node = std::atomic_load(&_last);
+            typename Node::SPtr null_node = nullptr;
+            if (nullptr == last_node)
+                return nullptr;
+
+            do
+            {
+                last_node = std::atomic_load(&_last);
+            } while (!(std::atomic_compare_exchange_strong(&_last, &last_node, null_node)));
+
+            return last_node;
         }
 };
 
