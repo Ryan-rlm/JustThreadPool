@@ -6,7 +6,6 @@
 #include <future>
 #include <memory>
 #include <functional>
-#include <concurrentqueue/blockingconcurrentqueue.h>
 
 
 namespace Just

@@ -4,6 +4,9 @@
 #include <thread>
 #include <vector>
 
+#include <concurrentqueue/concurrentqueue.h>
+#include <concurrentqueue/blockingconcurrentqueue.h>
+
 #include "JustThreadPool.h"
 using namespace Just;
 

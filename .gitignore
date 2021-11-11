@@ -1,10 +1,2 @@
-*
-
-!.gitignore
-!CMakeLists.txt
-!JustThreadPool.cpp
-!JustThreadPool.h
-!LICENSE
-!README.md
-
-!test.cpp
+.vscode
+build
