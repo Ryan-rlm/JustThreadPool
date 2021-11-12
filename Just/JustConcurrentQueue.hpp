@@ -144,6 +144,10 @@ class ConcurrentQueue final
             {
                 first_node = first_node->_next;
             }
+
+            while (last_node) {
+                last_node = last_node->_next;
+            }
         }
 
         typename Node::SPtr stop_pop() noexcept

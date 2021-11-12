@@ -11,8 +11,41 @@
 #include <iostream>
 using namespace std;
 
+// push
+void test_queue01()
+{
+    const int test_num = 2222222; //1000000
+    vector<thread> push_threads;
 
-void test_queue()
+    Just::ConcurrentQueue<int> cq;
+
+    for (size_t i = 0; i < 10; i++)
+    {
+        push_threads.emplace_back([i, &cq](){
+            for (size_t j = 0; j < test_num; j++)
+            {
+                cq.push(j * i);
+            }
+        });
+    }
+
+    for (auto& it : push_threads)
+    {
+        it.join();
+    }
+
+    cout << "cq empyt: " << cq.empty() << endl;
+    cout << "cq size: " << cq.size() << endl;
+}
+
+// pop
+void test_queue02()
+{
+
+}
+
+// push and pop
+void test_queue03()
 {
     const int test_num = 2222222; //1000000
     atomic_uint32_t pop_num;
@@ -68,7 +101,7 @@ void test_pool()
 
 int main(int argc, char* argv[])
 {
-    test_pool();
+    test_queue01();
 
     return 0;
 }

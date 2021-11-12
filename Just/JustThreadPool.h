@@ -10,6 +10,7 @@
 #include "JustConfig.h"
 
 JUST_NSP_START
+
 using Task = std::function<void()>;
 
 class ThreadPool final

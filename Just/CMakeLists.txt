@@ -7,6 +7,7 @@ project(
     LANGUAGES C CXX
 )
 
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(SRC
@@ -16,6 +17,3 @@ set(SRC
 )
 
 add_library(${PROJECT_NAME} ${SRC})
-
-find_package(unofficial-concurrentqueue CONFIG REQUIRED)
-target_link_libraries(${PROJECT_NAME} PRIVATE unofficial::concurrentqueue::concurrentqueue)
