@@ -2,8 +2,6 @@
 #ifndef __JUSTCONCURRENTQUEUE_H__
 #define __JUSTCONCURRENTQUEUE_H__
 
-#include <algorithm>
-#include <iterator>
 #include <memory>
 #include <atomic>
 
@@ -19,8 +17,7 @@ class ConcurrentQueue final
         using SPtr = std::shared_ptr<Node>;
 
         T _val;
-
-        std::shared_ptr<Node> _next = nullptr;
+        SPtr _next = nullptr;
     };
 
     private:
@@ -84,11 +81,6 @@ class ConcurrentQueue final
             return true;
         }
 
-        bool wait_pop(T&, size_t ms = 1000)
-        {
-            return false;
-        }
-
         bool pop(T& v)
         {
             typename Node::SPtr first_node = nullptr;
@@ -147,7 +139,6 @@ class ConcurrentQueue final
         {
             typename Node::SPtr last_node = stop_push();
             typename Node::SPtr first_node = stop_pop();
-            //typename Node::SPtr first_node_next = std::atomic_load(&(first_node->_next));
 
             while (first_node)
             {
