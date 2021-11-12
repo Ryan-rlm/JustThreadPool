@@ -1,5 +1,4 @@
 
-#include "JustThreadPool.h"
 #include "JustConcurrentQueue.hpp"
 
 #include <memory>
@@ -8,85 +7,68 @@
 #include <queue>
 #include <atomic>
 #include <vector>
+#include <thread>
 using namespace std;
 
-void test()
-{
-    Just::ThreadPool pool(4);
-
-    for(int i = 0; i < 8; ++i) {
-        pool.run([i] {
-            std::cout << "hello " << i << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            std::cout << "world " << i << std::endl;
-        });
-    }
-}
 
 void test1()
 {
+    const int test_num = 2222222; //1000000
+    atomic_uint32_t pop_num;
+    atomic_init(&pop_num, 0U);
+    vector<thread> push_threads;
+    vector<thread> pop_threads;
 
-    atomic_int tmp_int;
-    atomic_init(&tmp_int, 10);
+    Just::ConcurrentQueue<int> cq;
 
-    cout << tmp_int.is_lock_free() << endl;
+    for (size_t i = 0; i < 10; i++)
+    {
+        push_threads.emplace_back([i, &cq](){
+            for (size_t j = 0; j < test_num; j++)
+            {
+                cq.push(j * i);
+            }
+        });
+    }
 
-    int tmp = tmp_int.load();
-    cout << tmp << endl;
+    for (size_t i = 0; i < 5; i++)
+    {
+        pop_threads.emplace_back([i, &cq, &pop_num](){
+            int tmp;
+            for (size_t i = 0; i < test_num * 10; ++i)
+            {
+                if (cq.pop(tmp))
+                    ++pop_num;
+            }
+        });
+    }
 
-    std::atomic_compare_exchange_strong(&tmp_int, &tmp, 30);
+    for (auto& it : push_threads)
+    {
+        it.join();
+    }
 
-    cout << tmp_int.load() << endl;
+    for (auto& it : pop_threads)
+    {
+        it.join();
+    }
 
-    tmp_int.compare_exchange_strong(tmp, 13);
-    cout << tmp_int.load() << endl;
+    cout << "pop num: " << pop_num << endl;
+    cout << "cq empyt: " << cq.empty() << endl;
+    cout << "cq size: " << cq.size() << endl;
 }
-
-struct NodeBase
-{
-    NodeBase* _next;
-    NodeBase* _prev;
-};
 
 int main(int argc, char* argv[])
 {
-    atomic_int tmp_int;
-    atomic_init(&tmp_int, 13);
-    cout << tmp_int.load() << endl;
-    atomic_init(&tmp_int, 19);
-    cout << tmp_int.load() << endl;
+    // shared_ptr<int> int_ptr = make_shared<int>(30);
+    // auto ptr2 = atomic_load(&int_ptr);
+    // *ptr2 = 40;
+    // // test1();
 
-    cout << sizeof(NodeBase) << endl;
-    atomic<NodeBase> nb;
+    // cout << *int_ptr << endl;
 
-    Just::ConcurrentQueue<int> cq;
-    cq.push(3);
+    test1();
 
-    int tmp;
-    cq.pop(tmp);
-    cout << tmp << endl;
-
-    shared_ptr<std::vector<int>> tmp3 = nullptr;
-    shared_ptr<std::vector<int>> t4 = make_shared<std::vector<int>>( 4, 3 );
-    atomic_store(&tmp3, t4);
-    auto t5 = atomic_load(&tmp3);
-    auto t6 = tmp3;
-    t5->push_back(14);
-
-    if (atomic_compare_exchange_strong(&tmp3, &t5, t4))
-    {
-        cout << "fine" << endl;
-    }
-
-    for ( auto& it : *tmp3)
-    {
-        cout << it << endl;
-    }
-    shared_ptr<int> mp4;
-    cout << atomic_is_lock_free(&mp4) << endl;
-
-    Just::ConcurrentQueue<int> tmp7;
-    cout << tmp7.is_lock_free() << endl;
 
     return 0;
 }

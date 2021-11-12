@@ -68,17 +68,17 @@ class ConcurrentQueue final
             if (nullptr == last_node)
                 return false;
 
-            typename Node::SPtr tmp_node = std::make_shared<Node>();
-            tmp_node->_val = std::move(v);
+            typename Node::SPtr v_node = std::make_shared<Node>();
+            v_node->_val = std::move(v);
 
             do
             {
                 last_node = std::atomic_load(&_last);
                 if (nullptr == last_node)
                     return false;
-            } while (!(std::atomic_compare_exchange_strong(&_last, &last_node, tmp_node)));
+            } while (!(std::atomic_compare_exchange_strong(&_last, &last_node, v_node)));
 
-            std::atomic_store(&(last_node->_next), tmp_node);
+            std::atomic_store(&(last_node->_next), v_node);
             ++_size;
 
             return true;
@@ -92,20 +92,22 @@ class ConcurrentQueue final
         bool pop(T& v)
         {
             typename Node::SPtr first_node = nullptr;
+            typename Node::SPtr first_node_next = nullptr;
 
             do
             {
                 first_node = std::atomic_load(&_first);
+                first_node_next = std::atomic_load(&(first_node->_next));
                 if (nullptr == first_node
-                    || nullptr == first_node->_next)
+                    || nullptr == first_node_next)
                 {
                     return false;
                 }
 
-            } while (!(std::atomic_compare_exchange_strong(&_first, &first_node, first_node->_next)));
+            } while (!(std::atomic_compare_exchange_strong(&_first, &first_node, first_node_next)));
 
             --_size;
-            v = std::move(first_node->_next->_val);
+            v = std::move(first_node_next->_val);
 
             return true;
         }
@@ -123,7 +125,7 @@ class ConcurrentQueue final
         void clear() noexcept
         {
             typename Node::SPtr first_node = std::atomic_load(&_first);
-            typename Node::SPtr last_node = stop_push();;
+            typename Node::SPtr last_node = stop_push();
             typename Node::SPtr null_node = nullptr;
 
             if (nullptr == first_node
@@ -143,16 +145,14 @@ class ConcurrentQueue final
 
         void stop_and_clear() noexcept
         {
-            typename Node::SPtr first_node = std::atomic_load(&_first);
-            typename Node::SPtr last_node = std::atomic_load(&_last);
-            typename Node::SPtr null_node = nullptr;
+            typename Node::SPtr last_node = stop_push();
+            typename Node::SPtr first_node = stop_pop();
+            //typename Node::SPtr first_node_next = std::atomic_load(&(first_node->_next));
 
-            if (nullptr == first_node
-                || nullptr == last_node)
-                return;
-
-            stop_push();
-            stop_pop();
+            while (first_node)
+            {
+                first_node = first_node->_next;
+            }
         }
 
         typename Node::SPtr stop_pop() noexcept
