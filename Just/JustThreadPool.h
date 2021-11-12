@@ -37,7 +37,8 @@ private:
     std::unique_ptr<Data> d;
 
     void work_func();
-    void task_enqueue(Task t);
+    void task_enqueue(Task&& t);
+    void task_enqueue(Task& t);
 
 public:
     ThreadPool();
@@ -45,7 +46,7 @@ public:
     ~ThreadPool();
 
     size_t thread_count() const;
-    size_t task_count_approx() const;
+    size_t task_count() const;
 
     template<typename Func, typename... Args>
     std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>
@@ -66,7 +67,7 @@ public:
     void stop(Order od = Order::StopAndDone);
 };
 
-ThreadPool* commonThreadPool();
+ThreadPool& commonThreadPool();
 
 template<typename Func, typename... Args>
 std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>
@@ -79,7 +80,7 @@ template<typename Func, typename... Args>
 std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>
     async(Func&& func, Args&&... args)
 {
-    return commonThreadPool()->run(std::forward<Func>(func), std::forward<Args>(args)...);
+    return commonThreadPool().run(std::forward<Func>(func), std::forward<Args>(args)...);
 }
 
 JUST_NSP_END

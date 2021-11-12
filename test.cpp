@@ -1,17 +1,18 @@
 
-#include "JustConcurrentQueue.hpp"
+#include <JustThreadPool.h>
+#include <JustConcurrentQueue.hpp>
 
 #include <memory>
-#include <iostream>
 #include <list>
 #include <queue>
 #include <atomic>
 #include <vector>
 #include <thread>
+#include <iostream>
 using namespace std;
 
 
-void test1()
+void test_queue()
 {
     const int test_num = 2222222; //1000000
     atomic_uint32_t pop_num;
@@ -58,17 +59,16 @@ void test1()
     cout << "cq size: " << cq.size() << endl;
 }
 
+void test_pool()
+{
+    Just::commonThreadPool().run([](){
+        printf("Hello world!\n");
+    });
+}
+
 int main(int argc, char* argv[])
 {
-    // shared_ptr<int> int_ptr = make_shared<int>(30);
-    // auto ptr2 = atomic_load(&int_ptr);
-    // *ptr2 = 40;
-    // // test1();
-
-    // cout << *int_ptr << endl;
-
-    test1();
-
+    test_pool();
 
     return 0;
 }

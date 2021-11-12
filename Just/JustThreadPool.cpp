@@ -1,13 +1,11 @@
 ﻿
-#include <mutex>
-#include <shared_mutex>
 #include <thread>
 #include <vector>
-
-#include <concurrentqueue/concurrentqueue.h>
-#include <concurrentqueue/blockingconcurrentqueue.h>
+//#include <shared_mutex>
+#include <mutex>
 
 #include "JustThreadPool.h"
+#include "JustConcurrentQueue.hpp"
 using namespace Just;
 
 
@@ -22,9 +20,12 @@ namespace
 
 struct ThreadPool::Data
 {
-    moodycamel::BlockingConcurrentQueue<Task> task_queue; // 工作队列
+    //std::counting_semaphore<PTRDIFF_MAX> task_sem;
+    std::condition_variable_any task_sem;
+    ConcurrentQueue<Task> task_queue; // 工作队列
 
-    std::shared_mutex pool_mutex;
+    //std::shared_mutex pool_mutex;
+    std::mutex pool_mutex;
     size_t thread_size;
     std::vector<std::thread> thread_vec;  // 线程池
 
@@ -41,7 +42,8 @@ void ThreadPool::work_func()
         got = false;
         Task task;
 
-        got = d->task_queue.wait_dequeue_timed(task, std::chrono::seconds(1));
+        // wait
+        got = d->task_queue.pop(task);
         if (got && task)
             task();
 
@@ -51,15 +53,20 @@ void ThreadPool::work_func()
         }
         else if (d->order == Order::StopAndDone)
         {
-            if (d->task_queue.size_approx() == 0)
+            if (d->task_queue.empty())
                 break;
         }
     }
 }
 
-void ThreadPool::task_enqueue(Task t)
+void ThreadPool::task_enqueue(Task& t)
 {
-    d->task_queue.enqueue(t);
+    d->task_queue.push(t);
+}
+
+void ThreadPool::task_enqueue(Task&& t)
+{
+    d->task_queue.push(std::move(t));
 }
 
 ThreadPool::ThreadPool()
@@ -86,19 +93,21 @@ size_t ThreadPool::thread_count() const
     return d->thread_size;
 }
 
-size_t ThreadPool::task_count_approx() const
+size_t ThreadPool::task_count() const
 {
-    return d->task_queue.size_approx();
+    return d->task_queue.size();
 }
 
 void ThreadPool::clear()
 {
-    std::unique_lock<std::shared_mutex> locker(d->pool_mutex);
+    d->task_queue.clear();
 }
 
 bool ThreadPool::start(size_t thread_hint/* = 0*/)
 {
-    std::unique_lock<std::shared_mutex> locker(d->pool_mutex);
+    //std::unique_lock<std::shared_mutex> locker(d->pool_mutex);
+    std::lock_guard<std::mutex> locker(d->pool_mutex);
+
     if (d->stat != Status::Inited
         && d->stat != Status::Stoped)
         return false;
@@ -120,7 +129,8 @@ bool ThreadPool::start(size_t thread_hint/* = 0*/)
 
 ThreadPool::Status ThreadPool::status() const
 {
-    std::shared_lock<std::shared_mutex> locker(d->pool_mutex);
+    //std::shared_lock<std::shared_mutex> locker(d->pool_mutex);
+    std::lock_guard<std::mutex> locker(d->pool_mutex);
 
     return d->stat;
 }
@@ -130,7 +140,9 @@ void ThreadPool::stop(Order od)
     if (od == Order::None)
         return;
 
-    std::unique_lock<std::shared_mutex> locker(d->pool_mutex);
+    //std::unique_lock<std::shared_mutex> locker(d->pool_mutex);
+    std::lock_guard<std::mutex> locker(d->pool_mutex);
+
     d->stat = Status::Stopping;
     d->order = od;
 
@@ -145,9 +157,9 @@ void ThreadPool::stop(Order od)
     d->order = Order::None;
 }
 
-ThreadPool* Just::commonThreadPool()
+ThreadPool& Just::commonThreadPool()
 {
-    static ThreadPool threadPool;
+    static ThreadPool threadPool(7);
 
-    return &threadPool;
+    return threadPool;
 }
