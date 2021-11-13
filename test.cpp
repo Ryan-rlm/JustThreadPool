@@ -1,6 +1,6 @@
 
-#include <JustThreadPool.h>
-#include <JustConcurrentQueue.hpp>
+#include "Just/JustThreadPool.h"
+#include "Just/JustConcurrentQueue.hpp"
 
 #include <memory>
 #include <list>
