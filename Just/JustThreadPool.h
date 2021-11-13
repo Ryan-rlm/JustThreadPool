@@ -7,9 +7,8 @@
 #include <memory>
 #include <functional>
 
-#include "JustConfig.h"
 
-JUST_NSP_START
+namespace Just{
 
 using Task = std::function<void()>;
 
@@ -39,7 +38,6 @@ private:
 
     void work_func();
     void task_enqueue(Task&& t);
-    void task_enqueue(Task& t);
 
 public:
     ThreadPool();
@@ -84,6 +82,6 @@ std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>
     return commonThreadPool().run(std::forward<Func>(func), std::forward<Args>(args)...);
 }
 
-JUST_NSP_END
+}
 
 #endif // __JUSTTHREADPOOL_H__

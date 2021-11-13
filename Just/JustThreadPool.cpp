@@ -43,7 +43,7 @@ void ThreadPool::work_func()
         Task task;
 
         // wait
-        got = d->task_queue.pop(task);
+        got = d->task_queue.try_pop(task);
         if (got && task)
             task();
 
@@ -59,14 +59,9 @@ void ThreadPool::work_func()
     }
 }
 
-void ThreadPool::task_enqueue(Task& t)
-{
-    d->task_queue.push(t);
-}
-
 void ThreadPool::task_enqueue(Task&& t)
 {
-    d->task_queue.push(std::move(t));
+    d->task_queue.try_push(std::move(t));
 }
 
 ThreadPool::ThreadPool()

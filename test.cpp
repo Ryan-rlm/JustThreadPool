@@ -1,7 +1,9 @@
 
 #include "Just/JustThreadPool.h"
 #include "Just/JustConcurrentQueue.hpp"
+#include <concurrentqueue/concurrentqueue.h>
 
+#include <cstddef>
 #include <memory>
 #include <list>
 #include <queue>
@@ -11,20 +13,23 @@
 #include <iostream>
 using namespace std;
 
+#define COUNT (2222222)
+
 // push
-void test_queue01()
+template<typename T, const size_t Count = COUNT>
+void test_queue01(Just::ConcurrentQueue<T>& cq)
 {
-    const int test_num = 2222222; //1000000
     vector<thread> push_threads;
 
-    Just::ConcurrentQueue<int> cq;
-
+    cout << "push" << endl;
+    cout << "cq empyt: " << cq.empty() << endl;
+    cout << "cq size: " << cq.size() << endl;
     for (size_t i = 0; i < 10; i++)
     {
         push_threads.emplace_back([i, &cq](){
-            for (size_t j = 0; j < test_num; j++)
+            for (size_t j = 0; j < Count; j++)
             {
-                cq.push(j * i);
+                cq.try_push(T());
             }
         });
     }
@@ -36,12 +41,39 @@ void test_queue01()
 
     cout << "cq empyt: " << cq.empty() << endl;
     cout << "cq size: " << cq.size() << endl;
+    cout << "pushend" << endl;
 }
 
 // pop
-void test_queue02()
+template<typename T, const size_t Count = COUNT>
+void test_queue02(Just::ConcurrentQueue<T>& cq)
 {
+    vector<thread> pop_threads;
+    atomic_uint32_t pop_num(0);
+    cout << "pop" << endl;
+    cout << "cq empyt: " << cq.empty() << endl;
+    cout << "cq size: " << cq.size() << endl;
 
+    for (size_t i = 0; i < 10; i++)
+    {
+        pop_threads.emplace_back([i, &cq, &pop_num](){
+            T tmp;
+            for (size_t j = 0; j < Count; j++)
+            {
+                if (cq.try_pop(tmp))
+                    ++pop_num;
+            }
+        });
+    }
+
+    for (auto& it : pop_threads)
+    {
+        it.join();
+    }
+
+    cout << "cq empyt: " << cq.empty() << endl;
+    cout << "cq size: " << cq.size() << endl;
+    cout << "popend " << pop_num << endl;
 }
 
 // push and pop
@@ -60,7 +92,7 @@ void test_queue03()
         push_threads.emplace_back([i, &cq](){
             for (size_t j = 0; j < test_num; j++)
             {
-                cq.push(j * i);
+                cq.try_push(j * i);
             }
         });
     }
@@ -71,7 +103,7 @@ void test_queue03()
             int tmp;
             for (size_t i = 0; i < test_num * 10; ++i)
             {
-                if (cq.pop(tmp))
+                if (cq.try_pop(tmp))
                     ++pop_num;
             }
         });
@@ -101,7 +133,9 @@ void test_pool()
 
 int main(int argc, char* argv[])
 {
-    test_queue01();
+    Just::ConcurrentQueue<int> cq;
+    test_queue01(cq);
+    test_queue02(cq);
 
     return 0;
 }
