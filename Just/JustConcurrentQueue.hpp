@@ -8,6 +8,102 @@
 
 namespace Just{
 
+
+template<typename T>
+struct Node
+{
+    using Ptr = Node*;
+    using AtomicPtr = std::atomic<Ptr>;
+
+    struct AtomicSPtr final
+    {
+        AtomicPtr _atm_ptr = nullptr;
+
+    public:
+
+        AtomicSPtr() : _atm_ptr(nullptr) {}
+
+        AtomicSPtr(Ptr ptr)
+        {
+            ptr->inc_ref_count();
+            _atm_ptr.store(ptr, std::memory_order_relaxed);
+        }
+
+        explicit AtomicSPtr(const AtomicSPtr& asptr)
+        {
+            Ptr p = asptr._atm_ptr.load(std::memory_order_relaxed);
+            p->inc_ref_count();
+            _atm_ptr.store(p, std::memory_order_relaxed);
+        }
+
+        explicit AtomicSPtr(AtomicSPtr&& asptr)
+        {
+            _atm_ptr.store(asptr._atm_ptr.exchange(nullptr, std::memory_order_relaxed), std::memory_order_relaxed);
+        }
+
+        AtomicSPtr& operator= (Ptr ptr)
+        {
+            ptr->inc_ref_count();
+            Ptr p = _atm_ptr.exchange(ptr, std::memory_order_relaxed);
+            p->dec_ref_count();
+
+            return *this;
+        }
+
+        AtomicSPtr& operator= (const AtomicSPtr& asptr)
+        {
+            Ptr p = asptr._atm_ptr.load(std::memory_order_relaxed);
+            p->inc_ref_count();
+            p = _atm_ptr.exchange(p, std::memory_order_relaxed);
+            p->dec_ref_count();
+
+            return *this;
+        }
+
+        AtomicSPtr& operator= (AtomicSPtr&& asptr)
+        {
+            Ptr p = _atm_ptr.exchange(asptr._atm_ptr.exchange(nullptr, std::memory_order_relaxed), std::memory_order_relaxed);
+            p->dec_ref_count();
+
+            return *this;
+        }
+
+        AtomicSPtr& exchange(  desired, std::memory_order order = std::memory_order_seq_cst ) noexcept;
+
+        ~AtomicSPtr()
+        {
+            Ptr p = _atm_ptr.load(std::memory_order_relaxed);
+            if (p)
+            {
+                p->dec_ref_count();
+            }
+        }
+
+    };
+
+    void inc_ref_count()
+    {
+        _ref_count.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void dec_ref_count()
+    {
+        if (this)
+        {
+            const uint32_t ref = _ref_count.fetch_sub(1, std::memory_order_relaxed);
+            if (ref == 1)
+            {
+                delete this;
+            }
+        }
+    }
+
+    std::atomic<uint32_t> _ref_count = 0;
+    AtomicSPtr _next = nullptr;
+    T _val;
+};
+
+
 template<typename T>
 class ConcurrentQueue final
 {
