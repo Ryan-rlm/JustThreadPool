@@ -9,131 +9,45 @@
 
 namespace Just{
 
-template<typename T>
-struct Node
-{
-
-    struct AtomicSPtr final
-    {
-        AtomicPtr _atm_ptr = nullptr;
-
-    public:
-
-        AtomicSPtr() : _atm_ptr(nullptr) {}
-
-        AtomicSPtr(Ptr ptr)
-        {
-            ptr->inc_ref_count();
-            _atm_ptr.store(ptr, std::memory_order_relaxed);
-        }
-
-        explicit AtomicSPtr(const AtomicSPtr& asptr)
-        {
-            Ptr p = asptr._atm_ptr.load(std::memory_order_relaxed);
-            p->inc_ref_count();
-            _atm_ptr.store(p, std::memory_order_relaxed);
-        }
-
-        explicit AtomicSPtr(AtomicSPtr&& asptr)
-        {
-            _atm_ptr.store(asptr._atm_ptr.exchange(nullptr, std::memory_order_relaxed), std::memory_order_relaxed);
-        }
-
-        AtomicSPtr& operator= (Ptr ptr)
-        {
-            ptr->inc_ref_count();
-            Ptr p = _atm_ptr.exchange(ptr, std::memory_order_relaxed);
-            p->dec_ref_count();
-
-            return *this;
-        }
-
-        AtomicSPtr& operator= (const AtomicSPtr& asptr)
-        {
-            Ptr p = asptr._atm_ptr.load(std::memory_order_relaxed);
-            p->inc_ref_count();
-            p = _atm_ptr.exchange(p, std::memory_order_relaxed);
-            p->dec_ref_count();
-
-            return *this;
-        }
-
-        AtomicSPtr& operator= (AtomicSPtr&& asptr)
-        {
-            Ptr p = _atm_ptr.exchange(asptr._atm_ptr.exchange(nullptr, std::memory_order_relaxed), std::memory_order_relaxed);
-            p->dec_ref_count();
-
-            return *this;
-        }
-
-        AtomicSPtr& exchange(  desired, std::memory_order order = std::memory_order_seq_cst ) noexcept;
-
-        ~AtomicSPtr()
-        {
-            Ptr p = _atm_ptr.load(std::memory_order_relaxed);
-            if (p)
-            {
-                p->dec_ref_count();
-            }
-        }
-
-    };
-
-
-
-    AtomicSPtr _next = nullptr;
-    T _val;
-};
-
 
 template<typename T>
 class ConcurrentQueue final
 {
-    struct Node
-    {
-        using Ptr = Node*;
-        using AtomicPtr = std::atomic<Ptr>;
-
-        std::atomic<int32_t> _ref_count = 0;
-        AtomicPtr _next = nullptr;
-        T _val;
-
-        void inc_ref_count()
+    public:
+        struct Node
         {
-            _ref_count.fetch_add(1, std::memory_order_relaxed);
-        }
+            using Ptr = Node*;
+            using AtomicPtr = std::atomic<Node*>;
 
-        void dec_ref_count()
-        {
-            const int32_t ref = _ref_count.fetch_sub(1, std::memory_order_relaxed);
-            if (ref == 1)
-            {
-                delete this;
-            }
-        }
-    };
+            T _val;
+            AtomicPtr _next;
+        };
 
     private:
         std::atomic_uint32_t _size;
 
         std::atomic_bool _bstop_pop;
-        typename Node::SPtr _first;
+        typename Node::AtomicPtr _first;
         std::atomic_bool _bstop_push;
-        typename Node::SPtr _last;
+        typename Node::AtomicPtr _last;
 
     public:
         ConcurrentQueue()
             : _size { 0 }
             , _bstop_pop { false }
-            , _first { std::make_shared<Node>() }
+            , _first { nullptr }
             , _bstop_push { false }
-            , _last { _first }
+            , _last { nullptr }
         {
+            typename Node::Ptr ptr = new Node;
+            _first.store(ptr, std::memory_order_relaxed);
+            _last.store(ptr, std::memory_order_relaxed);
         }
 
         ~ConcurrentQueue()
         {
             stop_and_clear();
+            delete _last.load(std::memory_order_relaxed);
         }
 
         ConcurrentQueue(ConcurrentQueue&&) = delete;
@@ -160,13 +74,14 @@ class ConcurrentQueue final
             if (_bstop_push)
                 return false;
 
-            typename Node::SPtr last_node = nullptr;
-            typename Node::SPtr v_node = std::make_shared<Node>();
-            v_node->_val = std::move(v);
-            v_node->_next = nullptr;
+            typename Node::Ptr last_node = nullptr;
+            typename Node::Ptr v_node = new Node;
 
-            last_node = std::atomic_exchange(&_last, v_node);
-            std::atomic_store(&(last_node->_next), v_node);
+            v_node->_val = std::move(v);
+            v_node->_next.store(nullptr, std::memory_order_relaxed);
+
+            last_node = _last.exchange(v_node, std::memory_order_relaxed);
+            last_node->_next.store(v_node, std::memory_order_relaxed);
             ++_size;
 
             return true;
@@ -176,18 +91,19 @@ class ConcurrentQueue final
         {
             if (_bstop_pop)
                 return false;
-            typename Node::SPtr first_node = std::atomic_load(&_first);
-            typename Node::SPtr first_node_next = nullptr;
+            typename Node::Ptr first_node = _first.load(std::memory_order_relaxed);
+            typename Node::Ptr first_node_next = nullptr;
 
             do
             {
-                first_node_next = std::atomic_load(&(first_node->_next));
+                first_node_next = first_node->_next.load(std::memory_order_relaxed);
                 if (nullptr == first_node_next)
                     return false;
-            } while (!(std::atomic_compare_exchange_strong(&_first, &first_node, first_node_next)));
+            } while (!(_first.compare_exchange_strong(first_node, first_node_next, std::memory_order_release, std::memory_order_relaxed)));
 
             --_size;
             v = std::move(first_node_next->_val);
+            delete first_node;
 
             return true;
         }
@@ -232,11 +148,13 @@ class ConcurrentQueue final
         {
             stop_push();
             stop_pop();
-            typename Node::SPtr first_node = std::atomic_exchange(&_first, std::atomic_load(&_last));
+            typename Node::Ptr last_node = _last.load(std::memory_order_relaxed);
+            typename Node::Ptr first_node = _first.exchange(last_node, std::memory_order_relaxed);
             _size = 0;
-
-            while (first_node)
-                first_node = first_node->_next;
+            while (first_node && first_node != last_node) {
+                delete first_node;
+                first_node = first_node->_next.load(std::memory_order_relaxed);
+            };
         }
 
         void start() noexcept
@@ -245,6 +163,7 @@ class ConcurrentQueue final
             start_push();
         }
 };
+
 
 }
 
