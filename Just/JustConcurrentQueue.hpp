@@ -2,18 +2,16 @@
 #ifndef __JUSTCONCURRENTQUEUE_H__
 #define __JUSTCONCURRENTQUEUE_H__
 
+#include <bits/stdint-intn.h>
 #include <memory>
 #include <atomic>
 
 
 namespace Just{
 
-
 template<typename T>
 struct Node
 {
-    using Ptr = Node*;
-    using AtomicPtr = std::atomic<Ptr>;
 
     struct AtomicSPtr final
     {
@@ -81,24 +79,8 @@ struct Node
 
     };
 
-    void inc_ref_count()
-    {
-        _ref_count.fetch_add(1, std::memory_order_relaxed);
-    }
 
-    void dec_ref_count()
-    {
-        if (this)
-        {
-            const uint32_t ref = _ref_count.fetch_sub(1, std::memory_order_relaxed);
-            if (ref == 1)
-            {
-                delete this;
-            }
-        }
-    }
 
-    std::atomic<uint32_t> _ref_count = 0;
     AtomicSPtr _next = nullptr;
     T _val;
 };
@@ -109,10 +91,26 @@ class ConcurrentQueue final
 {
     struct Node
     {
-        using SPtr = std::shared_ptr<Node>;
+        using Ptr = Node*;
+        using AtomicPtr = std::atomic<Ptr>;
 
+        std::atomic<int32_t> _ref_count = 0;
+        AtomicPtr _next = nullptr;
         T _val;
-        SPtr _next = nullptr;
+
+        void inc_ref_count()
+        {
+            _ref_count.fetch_add(1, std::memory_order_relaxed);
+        }
+
+        void dec_ref_count()
+        {
+            const int32_t ref = _ref_count.fetch_sub(1, std::memory_order_relaxed);
+            if (ref == 1)
+            {
+                delete this;
+            }
+        }
     };
 
     private:
@@ -140,8 +138,8 @@ class ConcurrentQueue final
 
         ConcurrentQueue(ConcurrentQueue&&) = delete;
         ConcurrentQueue(const ConcurrentQueue&) = delete;
-        ConcurrentQueue& operator=(const ConcurrentQueue&) = delete;
         ConcurrentQueue& operator=(ConcurrentQueue&&) = delete;
+        ConcurrentQueue& operator=(const ConcurrentQueue&) = delete;
 
         bool is_lock_free()
         {
