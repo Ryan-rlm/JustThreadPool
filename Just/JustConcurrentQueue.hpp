@@ -82,12 +82,11 @@ class ConcurrentQueue final
         {
             if (_bstop_pop)
                 return false;
-            typename Node::SPtr first_node = nullptr;
+            typename Node::SPtr first_node = std::atomic_load(&_first);
             typename Node::SPtr first_node_next = nullptr;
 
             do
             {
-                first_node = std::atomic_load(&_first);
                 first_node_next = std::atomic_load(&(first_node->_next));
                 if (nullptr == first_node_next)
                     return false;
