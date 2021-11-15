@@ -2,7 +2,6 @@
 #ifndef __JUSTCONCURRENTQUEUE_H__
 #define __JUSTCONCURRENTQUEUE_H__
 
-#include <bits/stdint-intn.h>
 #include <memory>
 #include <atomic>
 
@@ -150,10 +149,12 @@ class ConcurrentQueue final
             stop_pop();
             typename Node::Ptr last_node = _last.load(std::memory_order_relaxed);
             typename Node::Ptr first_node = _first.exchange(last_node, std::memory_order_relaxed);
+            typename Node::Ptr del_node = nullptr;
             _size = 0;
             while (first_node && first_node != last_node) {
-                delete first_node;
+                del_node = first_node;
                 first_node = first_node->_next.load(std::memory_order_relaxed);
+                delete del_node;
             };
         }
 
