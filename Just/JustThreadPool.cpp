@@ -1,4 +1,7 @@
 ﻿
+#include <atomic>
+#include <chrono>
+#include <ratio>
 #include <thread>
 #include <vector>
 //#include <shared_mutex>
@@ -20,32 +23,39 @@ namespace
 
 struct ThreadPool::Data
 {
-    //std::counting_semaphore<PTRDIFF_MAX> task_sem;
-    std::condition_variable_any task_sem;
     ConcurrentQueue<Task> task_queue; // 工作队列
 
-    //std::shared_mutex pool_mutex;
-    std::mutex pool_mutex;
     size_t thread_size;
     std::vector<std::thread> thread_vec;  // 线程池
+    std::mutex pool_mutex;
 
-    Status stat = Status::Inited;
-    Order order = Order::None;
+    std::atomic<Status> stat;
+    std::atomic<Order> order;
 };
 
 void ThreadPool::work_func()
 {
+    using namespace std::chrono_literals;
     bool got = false;
+    Task task;
 
     for (;;)
     {
         got = false;
-        Task task;
+        task = nullptr;
 
-        // wait
-        got = d->task_queue.try_pop(task);
-        if (got && task)
-            task();
+        got = d->task_queue.pop(task);
+        if (got)
+        {
+            if (task)
+            {
+                task();
+            }
+        }
+        else
+        {
+            std::this_thread::sleep_for(100ms);
+        }
 
         if (d->order == Order::Stop)
         {
@@ -54,20 +64,24 @@ void ThreadPool::work_func()
         else if (d->order == Order::StopAndDone)
         {
             if (d->task_queue.empty())
+            {
                 break;
+            }
         }
     }
 }
 
 void ThreadPool::task_enqueue(Task&& t)
 {
-    d->task_queue.try_push(std::move(t));
+    d->task_queue.push(std::move(t));
 }
 
 ThreadPool::ThreadPool()
     : d{ std::make_unique<Data>() }
 {
     d->thread_size = KERNAL_COUNT;
+    d->stat = Status::Inited;
+    d->order = Order::None;
     start(d->thread_size);
 }
 
@@ -100,7 +114,6 @@ void ThreadPool::clear()
 
 bool ThreadPool::start(size_t thread_hint/* = 0*/)
 {
-    //std::unique_lock<std::shared_mutex> locker(d->pool_mutex);
     std::lock_guard<std::mutex> locker(d->pool_mutex);
 
     if (d->stat != Status::Inited
@@ -118,15 +131,13 @@ bool ThreadPool::start(size_t thread_hint/* = 0*/)
     }
 
     d->stat = Status::Running;
+    d->task_queue.start_push();
 
     return true;
 }
 
 ThreadPool::Status ThreadPool::status() const
 {
-    //std::shared_lock<std::shared_mutex> locker(d->pool_mutex);
-    std::lock_guard<std::mutex> locker(d->pool_mutex);
-
     return d->stat;
 }
 
@@ -135,9 +146,9 @@ void ThreadPool::stop(Order od)
     if (od == Order::None)
         return;
 
-    //std::unique_lock<std::shared_mutex> locker(d->pool_mutex);
     std::lock_guard<std::mutex> locker(d->pool_mutex);
 
+    d->task_queue.stop_push();
     d->stat = Status::Stopping;
     d->order = od;
 

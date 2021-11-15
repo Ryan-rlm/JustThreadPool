@@ -1,7 +1,6 @@
 
 #include "Just/JustThreadPool.h"
 #include "Just/JustConcurrentQueue.hpp"
-#include <concurrentqueue/concurrentqueue.h>
 
 #include <cstddef>
 #include <memory>
@@ -29,7 +28,7 @@ void test_queue01(Just::ConcurrentQueue<T>& cq)
         push_threads.emplace_back([i, &cq](){
             for (size_t j = 0; j < Count; j++)
             {
-                cq.try_push(T());
+                cq.push(T());
             }
         });
     }
@@ -60,7 +59,7 @@ void test_queue02(Just::ConcurrentQueue<T>& cq)
             T tmp;
             for (size_t j = 0; j < Count; j++)
             {
-                if (cq.try_pop(tmp))
+                if (cq.pop(tmp))
                     ++pop_num;
             }
         });
@@ -92,7 +91,7 @@ void test_queue03()
         push_threads.emplace_back([i, &cq](){
             for (size_t j = 0; j < test_num; j++)
             {
-                cq.try_push(j * i);
+                cq.push(j * i);
             }
         });
     }
@@ -103,7 +102,7 @@ void test_queue03()
             int tmp;
             for (size_t i = 0; i < test_num * 10; ++i)
             {
-                if (cq.try_pop(tmp))
+                if (cq.pop(tmp))
                     ++pop_num;
             }
         });

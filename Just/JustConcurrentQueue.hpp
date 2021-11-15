@@ -20,11 +20,11 @@ class ConcurrentQueue final
     };
 
     private:
-        mutable std::atomic_uint32_t _size;
+        std::atomic_uint32_t _size;
 
-        mutable std::atomic_bool _bstop_pop;
+        std::atomic_bool _bstop_pop;
         typename Node::SPtr _first;
-        mutable std::atomic_bool _bstop_push;
+        std::atomic_bool _bstop_push;
         typename Node::SPtr _last;
 
     public:
@@ -56,17 +56,16 @@ class ConcurrentQueue final
                     && std::atomic_is_lock_free(&_last));
         }
 
-        bool try_push(const T& v)
+        bool push(const T& v)
         {
             return push(T(v));
         }
 
-        bool try_push(T&& v)
+        bool push(T&& v)
         {
             if (_bstop_push)
                 return false;
 
-            typename Node::SPtr null_node = nullptr;
             typename Node::SPtr last_node = nullptr;
             typename Node::SPtr v_node = std::make_shared<Node>();
             v_node->_val = std::move(v);
@@ -79,7 +78,7 @@ class ConcurrentQueue final
             return true;
         }
 
-        bool try_pop(T& v)
+        bool pop(T& v)
         {
             if (_bstop_pop)
                 return false;
