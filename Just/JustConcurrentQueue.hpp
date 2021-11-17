@@ -2,6 +2,7 @@
 #ifndef __JUSTCONCURRENTQUEUE_H__
 #define __JUSTCONCURRENTQUEUE_H__
 
+#include <cstddef>
 #include <new>
 #include <memory>
 #include <atomic>
@@ -24,7 +25,7 @@ class ConcurrentQueue final
         };
 
     private:
-        std::atomic_uint32_t _size;
+        std::atomic<int32_t> _size;
 
         std::atomic_bool _bstop_pop;
         typename Node::AtomicPtr _first;
@@ -44,9 +45,13 @@ class ConcurrentQueue final
             _last.store(ptr, std::memory_order_relaxed);
         }
 
+        /**
+         * @brief Destroy the Concurrent Queue object, 需要停止所有 push 和 pop
+         *
+         */
         ~ConcurrentQueue()
         {
-            stop_and_clear();
+            clear();
             delete _last.load(std::memory_order_relaxed);
         }
 
@@ -82,9 +87,9 @@ class ConcurrentQueue final
             v_node->_val = std::move(v);
             std::atomic_init(&(v_node->_next), typename Node::Ptr(nullptr));
 
-            _size.fetch_add(1, std::memory_order_acquire);
+            _size.fetch_add(1, std::memory_order_release);
             last_node = _last.exchange(v_node, std::memory_order_relaxed);
-            last_node->_next.store(v_node, std::memory_order_release);
+            last_node->_next.store(v_node, std::memory_order_acquire);
 
             return true;
         }
@@ -186,19 +191,13 @@ class ConcurrentQueue final
             return _bstop_pop.load(std::memory_order_relaxed);
         }
 
+        /**
+         * @brief 强行将头指针指向尾指针，中间节点析构，不需要停止 push 或 pop
+         *
+         */
         void clear() noexcept
         {
-            stop_and_clear();
-            start();
-        }
-
-        void stop_and_clear() noexcept
-        {
-            if (stop_push()
-                || stop_pop())
-                return;
-
-            const size_t current_size = _size.exchange(0, std::memory_order_relaxed);
+            int32_t clear_size = _size.exchange(0, std::memory_order_relaxed);
             typename Node::Ptr const last_node = _last.load(std::memory_order_relaxed);
             typename Node::Ptr first_node = _first.exchange(last_node, std::memory_order_relaxed);
             typename Node::Ptr del_node = nullptr;
@@ -209,13 +208,10 @@ class ConcurrentQueue final
                     first_node = del_node->_next.load(std::memory_order_relaxed);
                 }while (nullptr == first_node);
                 delete del_node;
+                --clear_size;
             };
-        }
 
-        void start() noexcept
-        {
-            start_pop();
-            start_push();
+            _size.fetch_add(clear_size, std::memory_order_relaxed);
         }
 };
 
