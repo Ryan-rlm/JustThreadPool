@@ -46,7 +46,7 @@ class ConcurrentQueue final
         }
 
         /**
-         * @brief Destroy the Concurrent Queue object, 需要停止所有 push 和 pop
+         * @brief Destroy the Concurrent Queue object, 需要停止所有 push, 尽量停止 pop
          *
          */
         ~ConcurrentQueue()
@@ -87,9 +87,9 @@ class ConcurrentQueue final
             v_node->_val = std::move(v);
             std::atomic_init(&(v_node->_next), typename Node::Ptr(nullptr));
 
-            _size.fetch_add(1, std::memory_order_release);
+            _size.fetch_add(1, std::memory_order_acquire);
             last_node = _last.exchange(v_node, std::memory_order_relaxed);
-            last_node->_next.store(v_node, std::memory_order_acquire);
+            last_node->_next.store(v_node, std::memory_order_release);
 
             return true;
         }
