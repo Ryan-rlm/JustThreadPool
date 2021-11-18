@@ -188,7 +188,7 @@ int main(int argc, char* argv[])
     // test_queue01(cq);
     // test_queue02(cq);
 
-    test_queue03<int>();
+    test_queue04<int>();
 
     return 0;
 }

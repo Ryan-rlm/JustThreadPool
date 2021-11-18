@@ -114,12 +114,11 @@ void ThreadPool::clear()
 
 bool ThreadPool::start(size_t thread_hint/* = 0*/)
 {
-    std::lock_guard<std::mutex> locker(d->pool_mutex);
-
     if (d->stat != Status::Inited
         && d->stat != Status::Stoped)
         return false;
 
+    std::lock_guard<std::mutex> locker(d->pool_mutex);
     d->stat = Status::Starting;
     d->order = Order::None;
     d->thread_size = usefulThreadHint(thread_hint) ? thread_hint : KERNAL_COUNT;
@@ -165,7 +164,7 @@ void ThreadPool::stop(Order od)
 
 ThreadPool& Just::commonThreadPool()
 {
-    static ThreadPool threadPool(7);
+    static ThreadPool threadPool(3);
 
     return threadPool;
 }
