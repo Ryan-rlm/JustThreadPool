@@ -89,6 +89,8 @@ ThreadPool::ThreadPool(size_t thread_hint)
     : d{ std::make_unique<Data>() }
 {
     d->thread_size = usefulThreadHint(thread_hint) ? thread_hint : KERNAL_COUNT;
+    d->stat = Status::Inited;
+    d->order = Order::None;
     start(d->thread_size);
 }
 
