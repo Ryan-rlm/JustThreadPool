@@ -85,7 +85,7 @@ class ConcurrentQueue final
                 return false;
 
             v_node->_val = std::move(v);
-            std::atomic_init(&(v_node->_next), typename Node::Ptr(nullptr));
+            v_node->_next.store(nullptr, std::memory_order_relaxed);
 
             _size.fetch_add(1, std::memory_order_acquire);
             last_node = _last.exchange(v_node, std::memory_order_relaxed);

@@ -18,4 +18,8 @@ add_subdirectory(Just)
 
 add_executable(${PROJECT_NAME} ${SRC})
 
-target_link_libraries(${PROJECT_NAME} JustThreadPool)
+#target_link_libraries(${PROJECT_NAME} JustThreadPool)
+find_package(unofficial-concurrentqueue CONFIG REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE unofficial::concurrentqueue::concurrentqueue JustThreadPool)
+
+
