@@ -16,7 +16,7 @@
 #include <iostream>
 using namespace std;
 
-#define COUNT (10000000)
+#define COUNT (100000)
 
 // push
 template<typename T, const size_t Count = COUNT>
@@ -102,7 +102,7 @@ void test_queue03()
             });
     }
 
-    for (size_t i = 0; i < 7; i++)
+    for (size_t i = 0; i < 5; i++)
     {
         pop_threads.emplace_back([i, &cq, &pop_num](){
             cout << "pop start" << endl;

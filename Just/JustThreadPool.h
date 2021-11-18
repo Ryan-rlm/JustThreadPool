@@ -61,7 +61,7 @@ public:
 
     void clear();
 
-    bool start(size_t thread_hint = 0);
+    bool start(size_t thread_hint = 3);
     Status status() const;
     void stop(Order od = Order::StopAndDone);
 };

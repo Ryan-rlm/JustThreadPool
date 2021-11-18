@@ -114,7 +114,7 @@ void ThreadPool::clear()
     d->task_queue.clear();
 }
 
-bool ThreadPool::start(size_t thread_hint/* = 0*/)
+bool ThreadPool::start(size_t thread_hint/* = 3*/)
 {
     if (d->stat != Status::Inited
         && d->stat != Status::Stoped)
