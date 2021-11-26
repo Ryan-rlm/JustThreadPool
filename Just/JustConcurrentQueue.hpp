@@ -106,7 +106,7 @@ class ConcurrentQueue final
                 first_node_next = first_node->_next.load(std::memory_order_relaxed);
                 if (nullptr == first_node_next)
                     return false;
-            } while (!(_first.compare_exchange_strong(first_node, first_node_next, std::memory_order_acquire, std::memory_order_relaxed)));
+            } while (!(_first.compare_exchange_weak(first_node, first_node_next, std::memory_order_acquire, std::memory_order_relaxed)));
 
             _size.fetch_sub(1, std::memory_order_release);
             v = std::move(first_node_next->_val);
