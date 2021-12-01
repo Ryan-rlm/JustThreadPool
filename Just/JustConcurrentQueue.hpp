@@ -87,9 +87,9 @@ class ConcurrentQueue final
             v_node->_val = std::move(v);
             v_node->_next.store(nullptr, std::memory_order_relaxed);
 
-            _size.fetch_add(1, std::memory_order_acquire);
             last_node = _last.exchange(v_node, std::memory_order_relaxed);
-            last_node->_next.store(v_node, std::memory_order_release);
+            last_node->_next.store(v_node, std::memory_order_acquire);
+            _size.fetch_add(1, std::memory_order_release);
 
             return true;
         }
@@ -205,7 +205,7 @@ class ConcurrentQueue final
             while (first_node != last_node) {
                 del_node = first_node;
                 do {
-                    first_node = del_node->_next.load(std::memory_order_relaxed);
+                    first_node = first_node->_next.load(std::memory_order_relaxed);
                 }while (nullptr == first_node);
                 delete del_node;
                 --clear_size;
