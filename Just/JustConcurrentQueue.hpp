@@ -96,7 +96,7 @@ class ConcurrentQueue final
 
         bool pop(T& v)
         {
-            if (is_stop_pop())
+            if (is_stop_pop() && empty())
                 return false;
             typename Node::Ptr first_node = _first.load(std::memory_order_relaxed);
             typename Node::Ptr first_node_next = nullptr;
@@ -117,10 +117,10 @@ class ConcurrentQueue final
 
         bool empty() const noexcept
         {
-            return 0 == size();
+            return size() <= 0;
         }
 
-        size_t size() const noexcept
+        int32_t size() const noexcept
         {
             return _size.load(std::memory_order_relaxed);
         }
