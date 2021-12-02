@@ -10,49 +10,83 @@
 
 namespace Just{
 
-
 template<typename T>
+struct TheNode
+{
+    using Ptr = TheNode*;
+    using AtomicPtr = std::atomic<TheNode*>;
+
+    T _val;
+    AtomicPtr _next;
+};
+
+template<typename T, typename Allocator = std::allocator<TheNode<T>>>
 class ConcurrentQueue final
 {
     public:
-        struct Node
-        {
-            using Ptr = Node*;
-            using AtomicPtr = std::atomic<Node*>;
-
-            T _val;
-            AtomicPtr _next;
-        };
+        using Node = TheNode<T>;
 
     private:
         std::atomic<int32_t> _size;
 
-        std::atomic_bool _bstop_pop;
+        typename Node::AtomicPtr _del;
         typename Node::AtomicPtr _first;
-        std::atomic_bool _bstop_push;
         typename Node::AtomicPtr _last;
+        Allocator allocator; 
+
+        typename Node::Ptr get_new_node()
+        {
+            typename Node::Ptr new_node = get_del_node();
+
+            if (!new_node) {
+                new_node = allocator.allocate(1);
+            }
+            new_node->_next.store(nullptr, std::memory_order_relaxed);
+            
+            return new_node;
+        }
+
+        typename Node::Ptr get_del_node()
+        {
+            typename Node::Ptr del_node = _del.load(std::memory_order_relaxed);
+            typename Node::Ptr del_node_next = del_node->_next.load(std::memory_order_relaxed);
+            typename Node::Ptr first_node = _first.load(std::memory_order_relaxed);
+
+            if (del_node != first_node
+                && _del.compare_exchange_weak(del_node, del_node_next, std::memory_order_relaxed, std::memory_order_relaxed)) {
+                return del_node;
+            }
+            
+            return nullptr;
+        }
 
     public:
         ConcurrentQueue()
             : _size { 0 }
-            , _bstop_pop { false }
+            , _del { nullptr }
             , _first { nullptr }
-            , _bstop_push { false }
             , _last { nullptr }
         {
             typename Node::Ptr ptr = new Node;
+            _del.store(ptr, std::memory_order_relaxed);
             _first.store(ptr, std::memory_order_relaxed);
             _last.store(ptr, std::memory_order_relaxed);
         }
 
         /**
-         * @brief Destroy the Concurrent Queue object, 需要停止所有 push, 尽量停止 pop
+         * @brief Destroy the Concurrent Queue object, 需要停止所有 push pop
          *
          */
         ~ConcurrentQueue()
         {
             clear();
-            delete _last.load(std::memory_order_relaxed);
+            typename Node::Ptr del_node = _del.load(std::memory_order_relaxed);
+            typename Node::Ptr del_node_next = nullptr;
+            while (del_node) {
+                del_node_next = del_node->_next.load(std::memory_order_relaxed);
+                allocator.deallocate(del_node, 1);
+                del_node = del_node_next;
+            };
         }
 
         ConcurrentQueue(ConcurrentQueue&&) = delete;
@@ -63,9 +97,8 @@ class ConcurrentQueue final
         bool is_lock_free()
         {
             return (std::atomic_is_lock_free(&_size)
-                    && std::atomic_is_lock_free(&_bstop_pop)
+                    && std::atomic_is_lock_free(&_del)
                     && std::atomic_is_lock_free(&_first)
-                    && std::atomic_is_lock_free(&_bstop_push)
                     && std::atomic_is_lock_free(&_last));
         }
 
@@ -76,19 +109,15 @@ class ConcurrentQueue final
 
         bool push(T&& v)
         {
-            if (is_stop_push())
-                return false;
-
             typename Node::Ptr last_node = nullptr;
-            typename Node::Ptr v_node = new(std::nothrow) Node;
+            typename Node::Ptr v_node = get_new_node();
             if (nullptr == v_node)
                 return false;
 
             v_node->_val = std::move(v);
-            v_node->_next.store(nullptr, std::memory_order_relaxed);
 
             last_node = _last.exchange(v_node, std::memory_order_relaxed);
-            last_node->_next.store(v_node, std::memory_order_acquire);
+            last_node->_next.store(v_node, std::memory_order_relaxed);
             _size.fetch_add(1, std::memory_order_release);
 
             return true;
@@ -96,7 +125,7 @@ class ConcurrentQueue final
 
         bool pop(T& v)
         {
-            if (is_stop_pop() && empty())
+            if (empty())
                 return false;
             typename Node::Ptr first_node = _first.load(std::memory_order_relaxed);
             typename Node::Ptr first_node_next = nullptr;
@@ -110,7 +139,7 @@ class ConcurrentQueue final
 
             _size.fetch_sub(1, std::memory_order_release);
             v = std::move(first_node_next->_val);
-            delete first_node;
+            allocator.deallocate(get_del_node(), 1);
 
             return true;
         }
@@ -126,92 +155,14 @@ class ConcurrentQueue final
         }
 
         /**
-         * @brief 停止push，获取之前的状态
-         *
-         * @return true 之前已经停止push
-         * @return false 之前正常push
-         */
-        bool stop_push() noexcept
-        {
-            return _bstop_push.exchange(true, std::memory_order_relaxed);
-        }
-
-        /**
-         * @brief 开始push，获取之前的值
-         *
-         * @return true 之前已经停止push
-         * @return false 之前正常push
-         */
-        bool start_push() noexcept
-        {
-            return _bstop_push.exchange(false, std::memory_order_relaxed);
-        }
-
-        /**
-         * @brief 获取push状态
-         *
-         * @return true 停止push
-         * @return false 正常push
-         */
-        bool is_stop_push() const noexcept
-        {
-            return _bstop_push.load(std::memory_order_relaxed);
-        }
-
-        /**
-         * @brief 停止pop，获取之前状态
-         *
-         * @return true 之前已经停止pop
-         * @return false 之前正常pop
-         */
-        bool stop_pop() noexcept
-        {
-            return _bstop_pop.exchange(true, std::memory_order_relaxed);
-        }
-
-        /**
-         * @brief 开始pop，获取之前状态
-         *
-         * @return true 之前已经停止pop
-         * @return false 之前正常pop
-         */
-        bool start_pop() noexcept
-        {
-            return _bstop_pop.exchange(false, std::memory_order_relaxed);
-        }
-
-        /**
-         * @brief 获取pop状态
-         *
-         * @return true 停止pop
-         * @return false 正常pop
-         */
-        bool is_stop_pop() const noexcept
-        {
-            return _bstop_pop.load(std::memory_order_relaxed);
-        }
-
-        /**
-         * @brief 强行将头指针指向尾指针，中间节点析构，不需要停止 push 或 pop
+         * @brief 强行将头指针指向尾指针
          *
          */
         void clear() noexcept
         {
-            int32_t clear_size = _size.exchange(0, std::memory_order_relaxed);
             typename Node::Ptr const last_node = _last.load(std::memory_order_relaxed);
-            typename Node::Ptr first_node = _first.exchange(last_node, std::memory_order_relaxed);
-            typename Node::Ptr del_node = nullptr;
-
-            while (first_node != last_node) {
-                del_node = first_node;
-                do {
-                    first_node = first_node->_next.load(std::memory_order_relaxed);
-                }while (nullptr == first_node);
-                delete del_node;
-                --clear_size;
-            };
-
-            _size.fetch_add(clear_size, std::memory_order_relaxed);
+            typename Node::Ptr first_node = _first.exchange(last_node, std::memory_order_acquire);
+            int32_t clear_size = _size.exchange(0, std::memory_order_release);
         }
 };
 

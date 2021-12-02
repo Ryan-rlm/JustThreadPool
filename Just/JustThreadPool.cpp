@@ -132,7 +132,7 @@ bool ThreadPool::start(size_t thread_hint/* = 3*/)
     }
 
     d->stat = Status::Running;
-    d->task_queue.start_push();
+    // d->task_queue.start_push();
 
     return true;
 }
@@ -149,7 +149,7 @@ void ThreadPool::stop(Order od)
 
     std::lock_guard<std::mutex> locker(d->pool_mutex);
 
-    d->task_queue.stop_push();
+    // d->task_queue.stop_push();
     d->stat = Status::Stopping;
     d->order = od;
 

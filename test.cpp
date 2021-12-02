@@ -3,7 +3,6 @@
 #include "Just/JustConcurrentQueue.hpp"
 
 #include <concurrentqueue/concurrentqueue.h>
-#include <boost/lockfree/queue.hpp>
 
 #include <cstddef>
 #include <memory>
@@ -17,7 +16,7 @@
 #include <iostream>
 using namespace std;
 
-#define COUNT (10000000)
+#define COUNT (20000000)
 const size_t PUSH_THREADS = (10);
 const size_t POP_THREADS = (7);
 
@@ -83,22 +82,45 @@ void test_queue02(Just::ConcurrentQueue<T>& cq)
 }
 
 /*
-real    0m17.903s
-user    3m4.478s
-sys     0m0.890s
+real    0m40.486s
+user    4m34.419s
+sys     0m2.727s
 
-real    0m16.795s
-user    2m52.332s
-sys     0m1.090s
+real    0m31.319s
+user    3m23.801s
+sys     0m1.813s
 
-real    0m16.582s
-user    2m43.925s
-sys     0m1.312s
+real    0m40.144s
+user    4m32.750s
+sys     0m2.232s
 
-real    0m17.330s
-user    2m58.430s
-sys     0m0.859s
+real    0m31.404s
+user    5m11.714s
+sys     0m3.189s
 
+real    0m36.197s
+user    4m2.218s
+sys     0m2.592s
+
+real    0m37.537s
+user    4m15.984s
+sys     0m1.621s
+
+real    0m37.334s
+user    4m14.541s
+sys     0m1.912s
+
+real    0m43.380s
+user    5m0.267s
+sys     0m1.803s
+
+real    0m42.796s
+user    7m32.051s
+sys     0m3.240
+
+real    0m41.113s
+user    7m11.081s
+sys     0m2.721s
 */
 // push and pop
 template<typename T, const size_t Count = COUNT>
@@ -153,14 +175,38 @@ void test_queue03()
 }
 
 /*
+real    0m58.803s
+user    5m52.643s
+sys     0m0.485s
 
-real    0m22.845s
-user    2m46.740s
-sys     0m0.321s
+real    0m59.029s
+user    5m52.246s
+sys     0m0.695s
 
-real    0m22.743s
-user    2m46.700s
+real    0m58.520s
+user    5m50.931s
+sys     0m0.775s
+
+real    0m47.742s
+user    5m47.107s
+sys     0m1.309s
+
+real    0m56.790s
+user    5m46.230s
+sys     0m0.726s
+
+real    0m45.242s
+user    5m31.653s
+sys     0m0.521s
+
+real    0m45.754s
+user    5m32.650s
 sys     0m0.451s
+
+real    0m45.558s
+user    5m31.938s
+sys     0m0.591s
+
 */
 template<typename T, const size_t Count = COUNT>
 void test_queue04()
@@ -216,7 +262,7 @@ void test_queue04()
 /*
 10000000
 */
-
+/*
 template<typename T, const size_t Count = COUNT>
 void test_queue05()
 {
@@ -269,6 +315,7 @@ void test_queue05()
     // cout << "cq empyt: " << cq.size_approx() << endl;
     // cout << "cq size: " << cq.fixed_sized() << endl;
 }
+*/
 
 int main(int argc, char* argv[])
 {
