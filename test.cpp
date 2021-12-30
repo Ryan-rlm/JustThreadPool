@@ -1,10 +1,14 @@
 
 #include "Just/JustThreadPool.h"
 #include "Just/JustConcurrentQueue.hpp"
+#include "Just/JustCQ.hpp"
 
+#include <bits/stdint-uintn.h>
 #include <concurrentqueue/concurrentqueue.h>
 
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <list>
 #include <queue>
@@ -259,6 +263,63 @@ void test_queue04()
     cout << "cq size: " << cq.size_approx() << endl;
 }
 
+template<typename T>
+void test_queue05()
+{
+    atomic_uint32_t pop_num;
+    atomic_init(&pop_num, 0U);
+    vector<thread> push_threads;
+    vector<thread> pop_threads;
+
+    Just::ConcurrentQueue2<T> cq;
+
+    typename Just::ConcurrentQueue2<T>::Producer p(nullptr);
+    typename Just::ConcurrentQueue2<T>::Customer c(nullptr);
+
+    cq.CreateProducer(p);
+    cq.CreateCustomer(c);
+
+    for (size_t i = 0; i < PUSH_THREADS; i++)
+    {
+        push_threads.emplace_back([i, &p](){
+            cout << "push start" << endl;
+            for (size_t j = 0; j < COUNT; j++)
+            {
+                p.push(j * i);
+            }
+            cout << "push end" << endl;
+            });
+    }
+
+    for (size_t i = 0; i < POP_THREADS; i++)
+    {
+        pop_threads.emplace_back([i, &c, &pop_num](){
+            cout << "pop start" << endl;
+            int tmp;
+                for (size_t i = 0; i < COUNT * 10; ++i)
+                {
+                    if (c.pop(tmp))
+                        ++pop_num;
+                }
+                cout << "pop end" << endl;
+            });
+    }
+
+    for (auto& it : push_threads)
+    {
+        it.join();
+    }
+
+    for (auto& it : pop_threads)
+    {
+        it.join();
+    }
+
+    cout << "pop num: " << pop_num << endl;
+    // cout << "cq empyt: " << cq.size_approx() << endl;
+    // cout << "cq size: " << cq.size_approx() << endl;
+}
+
 /*
 10000000
 */
@@ -319,11 +380,40 @@ void test_queue05()
 
 int main(int argc, char* argv[])
 {
-    // Just::ConcurrentQueue<int> cq;
-    // test_queue01(cq);
-    // test_queue02(cq);
+    // test_queue05<int>();
 
-    test_queue03<int>();
+    Just::ConcurrentQueue2<int> cq;
+    typename Just::ConcurrentQueue2<int>::Producer p(nullptr);
+    typename Just::ConcurrentQueue2<int>::Customer c(nullptr);
+
+    cq.CreateProducer(p);
+
+    p.push(10);
+
+    std::thread th([&p](){
+        for (int i = 0; i < 1023; i++) {
+            p.push(i);
+        }
+    });
+
+    // std::thread th1([&p](){
+    //     for (int i = 0; i < 1000; i++) {
+    //         p.push(i);
+    //     }
+    // });
+
+    // std::thread th2([&p](){
+    //     for (int i = 0; i < 1000; i++) {
+    //         p.push(i);
+    //     }
+    // });
+
+    th.join();
+    //th1.join();
+    //th2.join();
+
+    p.push(10);
+    p.push(11);
 
     return 0;
 }

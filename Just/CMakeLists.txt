@@ -14,6 +14,7 @@ set(SRC
     JustThreadPool.h
     JustThreadPool.cpp
     JustConcurrentQueue.hpp
+    JustCQ.hpp
 )
 
 add_library(${PROJECT_NAME} ${SRC})
