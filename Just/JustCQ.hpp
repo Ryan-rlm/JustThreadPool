@@ -9,10 +9,10 @@ namespace Just{
 
 constexpr const uint32_t BLOCK_SIZE = (1 << 10);
 
-enum class PStat : uint16_t{
-    OK,
-    FULL,
-    OUT_MEM,
+enum class Pos : uint16_t{
+    IN,
+    ON,
+    OUT,
 };
 
 template<typename T>
@@ -42,12 +42,12 @@ struct Block
         _first.store(0, std::memory_order_relaxed);
     }
 
-    PStat push(T&& item)
+    Pos push(T&& item)
     {
         uint32_t last = _last.fetch_add(1, std::memory_order_relaxed);
         
         if (last == BLOCK_SIZE)
-            return PStat::FULL;
+            return Pos::ON;
         else if (last > BLOCK_SIZE)
             return PStat::OUT_MEM;
 
